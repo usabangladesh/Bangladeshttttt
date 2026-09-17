@@ -13,6 +13,7 @@ class ToolRegistry(
 ) {
     private val tools = mutableMapOf<String, AnisaTool>()
     val handsEngine: AnisaHandsEngine = AnisaHandsEngine(context)
+    val androidController: com.example.accessibility.AndroidController = com.example.accessibility.AndroidController(context)
 
     init {
         register(WeatherTool())

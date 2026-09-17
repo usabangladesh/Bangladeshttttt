@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">ANISA</string>
-    <string name="accessibility_service_label">Anisa Hands (AI Screen Controller)</string>
-    <string name="accessibility_service_description">Anisa Hands enables your AI assistant Anisa to control your phone screen, tap buttons, open apps, search videos, scroll feeds, and type text on your voice command.</string>
+    <string name="app_name">MYRA</string>
+    <string name="accessibility_service_label">MYRA Hands (AI Screen Controller)</string>
+    <string name="accessibility_service_description">MYRA Hands enables your AI assistant MYRA to control your phone screen, tap buttons, open apps, search videos, scroll feeds, and type text on your voice command.</string>
 </resources>

@@ -408,7 +408,7 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
             }
             "open_app" -> {
                 val app = result["app"] ?: "app"
-                "Opening $app right now."
+                "জি Sir, $app খুলে দিয়েছি।"
             }
             "click_screen_element" -> {
                 result["message"]?.toString() ?: "Tapped on that."
@@ -430,7 +430,7 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
                 "On screen I see: $summary"
             }
             "execute_phone_task" -> {
-                result["message"]?.toString() ?: "Phone task executed."
+                result["message"]?.toString() ?: "জি Sir, কাজটি সম্পন্ন করেছি।"
             }
             else -> "Done! Anything else you need?"
         }
@@ -440,34 +440,115 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
         val lower = input.lowercase()
         val hasHindi = input.any { it in '\u0900'..'\u097F' }
         val hasBengali = input.any { it in '\u0980'..'\u09FF' }
+        val lang = when {
+            hasBengali -> "bn"
+            hasHindi -> "hi"
+            else -> "en"
+        }
 
         return when {
-            // 🖐️ Hands Actions: YouTube Search & Play
+            // 🖐️ Android Controller: YouTube Launch & CUJ Search/Play
             lower.contains("youtube") || lower.contains("ইউটিউব") || lower.contains("यूट्यूब") -> {
-                val query = when {
-                    lower.contains("গান") || lower.contains("song") || lower.contains("music") -> "music"
-                    lower.contains("ভিডিও") || lower.contains("video") -> "popular video"
-                    else -> input.replace("youtube", "", ignoreCase = true).trim().ifBlank { "trending" }
-                }
-                viewModelScope.launch {
-                    toolRegistry.handsEngine.executeYouTubeSearchAndPlay(query)
-                }
-                when {
-                    hasHindi -> "यूट्यूब खोलकर वो वीडियो चला रही हूँ!"
-                    hasBengali -> "ইউটিউব ওপেন করে ওই ভিডিওটা চালিয়ে দিচ্ছি!"
-                    else -> "Opening YouTube and playing the video for you right now."
+                val isOpenOnly = lower.contains("খোলো") || lower.contains("খোল") || lower.contains("open") ||
+                        lower.contains("खोलो") || (lower.contains("চালু") && !lower.contains("গান") && !lower.contains("ভিডিও"))
+
+                if (isOpenOnly) {
+                    viewModelScope.launch {
+                        val result = toolRegistry.androidController.launchAppAndVerify("youtube", lang)
+                        if (result.success && result.spokenConfirmation.isNotBlank()) {
+                            _uiState.update { it.copy(currentUtterance = result.spokenConfirmation) }
+                            voiceEngine.speak(result.spokenConfirmation)
+                        }
+                    }
+                    when (lang) {
+                        "bn" -> "জি Sir, YouTube খুলে দিয়েছি।"
+                        "hi" -> "जी Sir, YouTube खोल दिया है।"
+                        else -> "Yes Sir, I have opened YouTube for you."
+                    }
+                } else {
+                    val query = when {
+                        lower.contains("গান") || lower.contains("song") || lower.contains("music") -> "music"
+                        lower.contains("ভিডিও") || lower.contains("video") -> "popular video"
+                        else -> input.replace("youtube", "", ignoreCase = true)
+                            .replace("ইউটিউব", "")
+                            .replace("यूट्यूब", "")
+                            .replace("চালাও", "")
+                            .replace("play", "", ignoreCase = true)
+                            .trim().ifBlank { "trending" }
+                    }
+                    viewModelScope.launch {
+                        val result = toolRegistry.androidController.executeYouTubeSearchAndPlay(query, lang)
+                        if (result.success && result.spokenConfirmation.isNotBlank()) {
+                            _uiState.update { it.copy(currentUtterance = result.spokenConfirmation) }
+                            voiceEngine.speak(result.spokenConfirmation)
+                        }
+                    }
+                    when (lang) {
+                        "bn" -> "জি Sir, YouTube-এ \"$query\" ভিডিওটি চালিয়ে দিয়েছি।"
+                        "hi" -> "जी Sir, यूट्यूब पर \"$query\" वीडियो चला दिया है।"
+                        else -> "Yes Sir, I have played \"$query\" on YouTube for you."
+                    }
                 }
             }
 
-            // 🖐️ Hands Actions: Facebook Feed Scroll
+            // 🖐️ Android Controller: Facebook Launch & Feed Scroll
             lower.contains("facebook") || lower.contains("ফেসবুক") || lower.contains("फेसबुक") -> {
-                viewModelScope.launch {
-                    toolRegistry.handsEngine.executeFacebookScroll(3)
+                val isScroll = lower.contains("scroll") || lower.contains("স্ক্রল") || lower.contains("स्क्रॉल")
+                if (isScroll) {
+                    viewModelScope.launch {
+                        val result = toolRegistry.androidController.executeFacebookScroll(3, lang)
+                        if (result.success && result.spokenConfirmation.isNotBlank()) {
+                            _uiState.update { it.copy(currentUtterance = result.spokenConfirmation) }
+                            voiceEngine.speak(result.spokenConfirmation)
+                        }
+                    }
+                    when (lang) {
+                        "bn" -> "জি Sir, Facebook খুলে ফিড স্ক্রল করে দিয়েছি।"
+                        "hi" -> "जी Sir, फेसबुक खोलकर फीड स्क्रॉल कर दिया है।"
+                        else -> "Yes Sir, I have opened Facebook and scrolled through your feed."
+                    }
+                } else {
+                    viewModelScope.launch {
+                        val result = toolRegistry.androidController.launchAppAndVerify("facebook", lang)
+                        if (result.success && result.spokenConfirmation.isNotBlank()) {
+                            _uiState.update { it.copy(currentUtterance = result.spokenConfirmation) }
+                            voiceEngine.speak(result.spokenConfirmation)
+                        }
+                    }
+                    when (lang) {
+                        "bn" -> "জি Sir, Facebook খুলে দিয়েছি।"
+                        "hi" -> "जी Sir, Facebook खोल दिया है।"
+                        else -> "Yes Sir, I have opened Facebook for you."
+                    }
                 }
-                when {
-                    hasHindi -> "फेसबुक खोलकर आपकी फीड स्क्रॉल कर रही हूँ।"
-                    hasBengali -> "ফেসবুক ওপেন করে ফিড স্ক্রল করে দিচ্ছি!"
-                    else -> "Opening Facebook and scrolling through your feed."
+            }
+
+            // 🖐️ Android Controller: Direct App Open commands (Chrome, Camera, WhatsApp, Settings, etc.)
+            lower.startsWith("open ") || lower.contains("খোলো") || lower.contains("খোল") || lower.contains("खोलो") -> {
+                val targetApp = when {
+                    lower.contains("chrome") || lower.contains("ক্রোম") -> "chrome"
+                    lower.contains("whatsapp") || lower.contains("হোয়াটসঅ্যাপ") -> "whatsapp"
+                    lower.contains("camera") || lower.contains("ক্যামেরা") || lower.contains("कैमरा") -> "camera"
+                    lower.contains("settings") || lower.contains("সেটিংস") || lower.contains("सेटिंग्स") -> "settings"
+                    lower.contains("maps") || lower.contains("ম্যাপস") -> "maps"
+                    lower.contains("calculator") || lower.contains("ক্যালকুলেটর") -> "calculator"
+                    else -> input.replace("open", "", ignoreCase = true)
+                        .replace("খোলো", "")
+                        .replace("খোল", "")
+                        .replace("खोलो", "")
+                        .trim()
+                }
+                viewModelScope.launch {
+                    val result = toolRegistry.androidController.launchAppAndVerify(targetApp, lang)
+                    if (result.success && result.spokenConfirmation.isNotBlank()) {
+                        _uiState.update { it.copy(currentUtterance = result.spokenConfirmation) }
+                        voiceEngine.speak(result.spokenConfirmation)
+                    }
+                }
+                when (lang) {
+                    "bn" -> "জি Sir, $targetApp খুলে দিয়েছি।"
+                    "hi" -> "जी Sir, $targetApp खोल दिया है।"
+                    else -> "Yes Sir, I have opened $targetApp for you."
                 }
             }
 

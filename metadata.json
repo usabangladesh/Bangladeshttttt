@@ -1,6 +1,6 @@
 {
-  "name": "ANISA",
-  "description": "Voice-first realtime AI companion with Bengali, English & Hindi trilingual voice, Gemini Live, and Android Hands accessibility screen control.",
+  "name": "MYRA",
+  "description": "Production-ready Android AI Voice Assistant with Gemini Live WebSocket, Native PCM Audio, Accessibility screen control, and phone automation.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

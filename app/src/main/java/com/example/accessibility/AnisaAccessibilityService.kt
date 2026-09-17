@@ -37,6 +37,25 @@ class AnisaAccessibilityService : AccessibilityService() {
             return instance != null
         }
 
+        fun isAccessibilityServiceEnabled(context: Context): Boolean {
+            val enabledServices = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: return false
+            val colonSplitter = android.text.TextUtils.SimpleStringSplitter(':')
+            colonSplitter.setString(enabledServices)
+            val expectedComponentName = android.content.ComponentName(context, AnisaAccessibilityService::class.java).flattenToString()
+            val expectedShortComponentName = android.content.ComponentName(context, AnisaAccessibilityService::class.java).flattenToShortString()
+            while (colonSplitter.hasNext()) {
+                val componentNameString = colonSplitter.next()
+                if (componentNameString.equals(expectedComponentName, ignoreCase = true) ||
+                    componentNameString.equals(expectedShortComponentName, ignoreCase = true)) {
+                    return true
+                }
+            }
+            return false
+        }
+
         fun openAccessibilitySettings(context: Context) {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -140,6 +159,13 @@ class AnisaAccessibilityService : AccessibilityService() {
         val stroke = GestureDescription.StrokeDescription(path, 0, durationMs)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         return dispatchGestureAsync(gesture)
+    }
+
+    suspend fun doubleClickAt(x: Float, y: Float): Boolean {
+        val tap1 = clickAt(x, y, 70)
+        kotlinx.coroutines.delay(120)
+        val tap2 = clickAt(x, y, 70)
+        return tap1 && tap2
     }
 
     suspend fun longPressAt(x: Float, y: Float, durationMs: Long = 800): Boolean {
@@ -320,9 +346,18 @@ class AnisaAccessibilityService : AccessibilityService() {
         if (targetPackage != null) {
             val launchIntent = pm.getLaunchIntentForPackage(targetPackage)
             if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                 startActivity(launchIntent)
                 return true
+            }
+            if (targetPackage == "com.google.android.youtube") {
+                try {
+                    val webIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com")).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(webIntent)
+                    return true
+                } catch (_: Exception) {}
             }
         }
 

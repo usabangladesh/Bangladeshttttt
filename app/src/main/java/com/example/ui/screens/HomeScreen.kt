@@ -468,16 +468,16 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val quickPrompts = listOf(
+                "Anisa, YouTube খোলো",
                 "YouTube open করে ওই ভিডিওটা চালাও",
                 "Facebook open করে feed scroll করো",
+                "Open Chrome",
                 "Go Home",
                 "Go Back",
                 "Recent apps",
-                "Scroll down",
                 "আনিসা কেমন আছো?",
                 "अनीसा कैसी हो?",
-                "আজকের আবহাওয়া কেমন?",
-                "Organize my day"
+                "আজকের আবহাওয়া কেমন?"
             )
             quickPrompts.forEach { prompt ->
                 Box(

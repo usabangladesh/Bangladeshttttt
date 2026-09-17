@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "ANISA"
+rootProject.name = "MYRA"
 
 include(":app")
