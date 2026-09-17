@@ -1,0 +1,6 @@
+{
+  "name": "ANISA",
+  "description": "Voice-first realtime intelligent mobile AI companion with voice activity detection, persistent memory, tool system, dynamic avatar, and natural human-like conversation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
