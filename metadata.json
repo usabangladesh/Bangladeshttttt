@@ -1,6 +1,6 @@
 {
   "name": "ANISA",
-  "description": "Voice-first realtime intelligent mobile AI companion with voice activity detection, persistent memory, tool system, dynamic avatar, and natural human-like conversation.",
+  "description": "Voice-first realtime AI companion with Bengali, English & Hindi trilingual voice, Gemini Live, and Android Hands accessibility screen control.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.entity.SettingsEntity
+import com.example.ui.theme.AmberGlow
 import com.example.ui.theme.CoralError
 import com.example.ui.theme.CyanNeon
 import com.example.ui.theme.ElectricViolet
@@ -66,6 +68,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onSaveSettings: (SettingsEntity) -> Unit,
     onClearAllData: () -> Unit,
+    isHandsActive: Boolean = false,
+    onOpenAccessibilitySettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var speechRate by remember(settings.speechRate) { mutableFloatStateOf(settings.speechRate) }
@@ -273,6 +277,76 @@ fun SettingsScreen(
                     colors = SwitchDefaults.colors(checkedThumbColor = CyanNeon, checkedTrackColor = CyanNeon.copy(alpha = 0.4f))
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- Anisa Hands 🖐️ (Android Accessibility Service) ---
+        SettingsSectionHeader(title = "ANISA HANDS & SCREEN CONTROL 🖐️", icon = Icons.Default.Vibration)
+
+        SettingsCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Android Accessibility Service",
+                            color = TextWhite,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (isHandsActive) Color(0xFF00F5D4) else AmberGlow)
+                        )
+                    }
+                    Text(
+                        text = if (isHandsActive)
+                            "ACTIVE • Anisa can tap buttons, scroll, type, and control apps"
+                        else
+                            "INACTIVE • Tap button below to enable in Android Accessibility Settings",
+                        fontSize = 12.sp,
+                        color = if (isHandsActive) Color(0xFF00F5D4) else AmberGlow
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Button(
+                onClick = onOpenAccessibilitySettings,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isHandsActive) Color(0xFF00F5D4).copy(alpha = 0.2f) else CyanNeon
+                ),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (isHandsActive) "Manage Accessibility Settings" else "Enable Anisa Hands Now",
+                    color = if (isHandsActive) Color(0xFF00F5D4) else Color(0xFF04131A),
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "What Anisa can do on your phone:",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextWhite
+            )
+            Text(
+                text = "• YouTube search & auto-play videos\n• Facebook & social feed scrolling\n• Tap any screen button or coordinate\n• Type text into search bars and chat boxes\n• System keys: Home, Back, Recents, Notifications\n• Screen UI Vision & element inspection",
+                fontSize = 11.sp,
+                color = TextSecondary,
+                lineHeight = 18.sp
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))

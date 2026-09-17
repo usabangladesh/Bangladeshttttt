@@ -1,6 +1,7 @@
 package com.example.tools
 
 import android.content.Context
+import com.example.accessibility.AnisaHandsEngine
 import com.example.data.repository.AnisaRepository
 import com.example.network.GeminiToolDeclaration
 import com.example.notifications.AnisaNotificationManager
@@ -11,6 +12,7 @@ class ToolRegistry(
     notificationManager: AnisaNotificationManager
 ) {
     private val tools = mutableMapOf<String, AnisaTool>()
+    val handsEngine: AnisaHandsEngine = AnisaHandsEngine(context)
 
     init {
         register(WeatherTool())
@@ -19,6 +21,16 @@ class ToolRegistry(
         register(TaskPlannerTool(repository))
         register(DeviceStatusTool(context))
         register(ReminderTool(context, notificationManager))
+
+        // 🖐️ Anisa's Hands (Accessibility Service & UI Vision Tools)
+        register(OpenAppTool(handsEngine))
+        register(ClickElementTool(handsEngine))
+        register(ClickAtCoordinateTool(handsEngine))
+        register(ScrollScreenTool(handsEngine))
+        register(TypeTextTool(handsEngine))
+        register(GlobalSystemKeyTool(handsEngine))
+        register(ReadScreenUiTool(handsEngine))
+        register(ExecutePhoneTaskTool(handsEngine))
     }
 
     fun register(tool: AnisaTool) {

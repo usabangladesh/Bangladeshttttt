@@ -1,6 +1,7 @@
 package com.example.anisa
 
 import android.app.Application
+import android.content.Context
 import android.os.Vibrator
 import android.os.VibrationEffect
 import android.os.Build
@@ -126,6 +127,18 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+
+        // Observe Accessibility Service (Anisa's Hands)
+        viewModelScope.launch {
+            com.example.accessibility.AnisaAccessibilityService.isServiceConnected.collectLatest { isConnected ->
+                _uiState.update { it.copy(isHandsActive = isConnected) }
+            }
+        }
+    }
+
+    fun openAccessibilitySettings(context: Context) {
+        triggerHaptic()
+        com.example.accessibility.AnisaAccessibilityService.openAccessibilitySettings(context)
     }
 
     private fun handleVoiceStateChange(vState: VoiceState) {
@@ -393,6 +406,32 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
             "set_reminder" -> {
                 result["message"]?.toString() ?: "Reminder set!"
             }
+            "open_app" -> {
+                val app = result["app"] ?: "app"
+                "Opening $app right now."
+            }
+            "click_screen_element" -> {
+                result["message"]?.toString() ?: "Tapped on that."
+            }
+            "click_at_coordinate" -> {
+                result["message"]?.toString() ?: "Tapped on screen."
+            }
+            "scroll_screen" -> {
+                result["message"]?.toString() ?: "Scrolled screen."
+            }
+            "type_text" -> {
+                result["message"]?.toString() ?: "Typed text."
+            }
+            "press_system_key" -> {
+                result["message"]?.toString() ?: "Done."
+            }
+            "read_screen_ui" -> {
+                val summary = result["screen_summary"] ?: "Screen checked."
+                "On screen I see: $summary"
+            }
+            "execute_phone_task" -> {
+                result["message"]?.toString() ?: "Phone task executed."
+            }
             else -> "Done! Anything else you need?"
         }
     }
@@ -403,6 +442,81 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
         val hasBengali = input.any { it in '\u0980'..'\u09FF' }
 
         return when {
+            // 🖐️ Hands Actions: YouTube Search & Play
+            lower.contains("youtube") || lower.contains("ইউটিউব") || lower.contains("यूट्यूब") -> {
+                val query = when {
+                    lower.contains("গান") || lower.contains("song") || lower.contains("music") -> "music"
+                    lower.contains("ভিডিও") || lower.contains("video") -> "popular video"
+                    else -> input.replace("youtube", "", ignoreCase = true).trim().ifBlank { "trending" }
+                }
+                viewModelScope.launch {
+                    toolRegistry.handsEngine.executeYouTubeSearchAndPlay(query)
+                }
+                when {
+                    hasHindi -> "यूट्यूब खोलकर वो वीडियो चला रही हूँ!"
+                    hasBengali -> "ইউটিউব ওপেন করে ওই ভিডিওটা চালিয়ে দিচ্ছি!"
+                    else -> "Opening YouTube and playing the video for you right now."
+                }
+            }
+
+            // 🖐️ Hands Actions: Facebook Feed Scroll
+            lower.contains("facebook") || lower.contains("ফেসবুক") || lower.contains("फेसबुक") -> {
+                viewModelScope.launch {
+                    toolRegistry.handsEngine.executeFacebookScroll(3)
+                }
+                when {
+                    hasHindi -> "फेसबुक खोलकर आपकी फीड स्क्रॉल कर रही हूँ।"
+                    hasBengali -> "ফেসবুক ওপেন করে ফিড স্ক্রল করে দিচ্ছি!"
+                    else -> "Opening Facebook and scrolling through your feed."
+                }
+            }
+
+            // 🖐️ Hands Actions: System Hardware Keys (Home, Back, Recents)
+            lower.contains("go home") || lower == "home" || lower.contains("হোমে যাও") || lower.contains("হোম") || lower.contains("होम") -> {
+                viewModelScope.launch { toolRegistry.handsEngine.pressGlobal("home") }
+                when {
+                    hasHindi -> "होम स्क्रीन पर जा रही हूँ।"
+                    hasBengali -> "হোমে চলে যাচ্ছি!"
+                    else -> "Going home."
+                }
+            }
+
+            lower.contains("go back") || lower == "back" || lower.contains("পিছে যাও") || lower.contains("পিছনে") || lower.contains("पीछे") -> {
+                viewModelScope.launch { toolRegistry.handsEngine.pressGlobal("back") }
+                when {
+                    hasHindi -> "पीछे जा रही हूँ।"
+                    hasBengali -> "পিছে যাচ্ছি।"
+                    else -> "Going back."
+                }
+            }
+
+            lower.contains("recent apps") || lower.contains("recents") || lower.contains("রিসেন্ট") || lower.contains("रिसेंट") -> {
+                viewModelScope.launch { toolRegistry.handsEngine.pressGlobal("recents") }
+                when {
+                    hasHindi -> "हाल के ऐप्स दिखा रही हूँ।"
+                    hasBengali -> "রিসেন্ট অ্যাপস দেখাচ্ছি।"
+                    else -> "Opening recent apps."
+                }
+            }
+
+            lower.contains("scroll down") || lower.contains("স্ক্রল") || lower.contains("নিচে যাও") || lower.contains("स्क्रॉल") -> {
+                viewModelScope.launch { toolRegistry.handsEngine.scroll(com.example.accessibility.ScrollDirection.DOWN) }
+                when {
+                    hasHindi -> "स्क्रीन नीचे स्क्रॉल कर रही हूँ।"
+                    hasBengali -> "স্ক্রিন নিচে স্ক্রল করছি।"
+                    else -> "Scrolling down for you."
+                }
+            }
+
+            lower.contains("scroll up") || lower.contains("উপরে যাও") -> {
+                viewModelScope.launch { toolRegistry.handsEngine.scroll(com.example.accessibility.ScrollDirection.UP) }
+                when {
+                    hasHindi -> "स्क्रीन ऊपर स्क्रॉल कर रही हूँ।"
+                    hasBengali -> "স্ক্রিন উপরে স্ক্রল করছি।"
+                    else -> "Scrolling up for you."
+                }
+            }
+
             lower == "anisa" || lower.startsWith("hey") || lower == "hello" || lower == "hi" || lower.contains("আনিসা") || lower.contains("अनीसा") ->
                 when {
                     hasHindi -> "हाँ कहिए! मैं सुन रही हूँ, बताइए क्या काम है?"
@@ -513,6 +627,17 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
         - Keep answers concise and conversational (around 1 to 3 short sentences by default) because you speak aloud over voice.
         - Support conversational continuity, remember previous sentences and context.
         - Humor level: ${settings.humorLevel * 10}/10. Sass level: ${settings.sassLevel * 10}/10.
+        Android Hands 🖐️ & Screen Vision 👁️ Capabilities:
+        - You have real hands and screen vision on this Android device via Android Accessibility Service.
+        - You can directly manipulate the user's phone using your action tools:
+          * open_app: opens YouTube, Facebook, Chrome, WhatsApp, Camera, etc.
+          * click_screen_element: taps any button, icon, link, video, or tab on the screen.
+          * scroll_screen: scrolls 'down', 'up', 'left', or 'right' (e.g. social feeds or search results).
+          * type_text: types text into any search bar, comment box, or input field.
+          * press_system_key: presses 'back', 'home', 'recents', 'notifications'.
+          * read_screen_ui: inspects screen elements to see what buttons and text are visible.
+          * execute_phone_task: runs end-to-end multi-step tasks like 'youtube_play' (e.g. open YouTube, search query, tap first video) or 'facebook_scroll'.
+        - If user asks to open an app, search and play video, scroll feed, tap a button, or go back/home, ALWAYS execute the appropriate tool!
         $memoryContext
         """.trimIndent()
     }

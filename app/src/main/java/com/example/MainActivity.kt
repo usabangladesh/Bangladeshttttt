@@ -90,7 +90,8 @@ class MainActivity : ComponentActivity() {
                                     onPromptSelected = { prompt -> viewModel.handleUserSpeech(prompt) },
                                     onNavigate = { dest -> viewModel.selectScreen(dest) },
                                     onCompleteTaskStep = { task -> viewModel.completeTaskStep(task) },
-                                    onCancelTask = { task -> viewModel.cancelTask(task) }
+                                    onCancelTask = { task -> viewModel.cancelTask(task) },
+                                    onOpenAccessibilitySettings = { viewModel.openAccessibilitySettings(this@MainActivity) }
                                 )
 
                                 AnisaScreen.HISTORY -> HistoryScreen(
@@ -130,7 +131,9 @@ class MainActivity : ComponentActivity() {
                                     onClearAllData = {
                                         viewModel.clearAllConversations()
                                         viewModel.clearAllMemories()
-                                    }
+                                    },
+                                    isHandsActive = uiState.isHandsActive,
+                                    onOpenAccessibilitySettings = { viewModel.openAccessibilitySettings(this@MainActivity) }
                                 )
                             }
                         }

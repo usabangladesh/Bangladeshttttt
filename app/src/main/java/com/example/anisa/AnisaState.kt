@@ -36,6 +36,7 @@ data class AnisaUiState(
     val isMicActive: Boolean = false,
     val isLiveSessionActive: Boolean = false,
     val isWakeWordActive: Boolean = true,
+    val isHandsActive: Boolean = false,
     val isNetworkConnected: Boolean = true,
     val activeTask: TaskEntity? = null,
     val recentConversations: List<ConversationEntity> = emptyList(),

@@ -72,6 +72,7 @@ fun HomeScreen(
     onNavigate: (AnisaScreen) -> Unit,
     onCompleteTaskStep: (com.example.data.entity.TaskEntity) -> Unit,
     onCancelTask: (com.example.data.entity.TaskEntity) -> Unit,
+    onOpenAccessibilitySettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -282,6 +283,109 @@ fun HomeScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // --- Anisa Hands 🖐️ Screen Controller Banner ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    if (uiState.isHandsActive)
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF00F5D4).copy(alpha = 0.16f),
+                                Color(0xFF00BBF9).copy(alpha = 0.14f)
+                            )
+                        )
+                    else
+                        Brush.horizontalGradient(
+                            listOf(
+                                ObsidianCard,
+                                ObsidianCard.copy(alpha = 0.85f)
+                            )
+                        )
+                )
+                .border(
+                    1.dp,
+                    if (uiState.isHandsActive) Color(0xFF00F5D4).copy(alpha = 0.8f) else AmberGlow.copy(alpha = 0.6f),
+                    RoundedCornerShape(16.dp)
+                )
+                .clickable { onOpenAccessibilitySettings() }
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .testTag("anisa_hands_banner")
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (uiState.isHandsActive) Color(0xFF00F5D4) else AmberGlow.copy(alpha = 0.2f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🖐️",
+                            fontSize = 18.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (uiState.isHandsActive) "ANISA HANDS READY" else "ANISA HANDS: TAP TO ENABLE",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (uiState.isHandsActive) Color(0xFF00F5D4) else AmberGlow,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(if (uiState.isHandsActive) Color(0xFF00F5D4) else AmberGlow)
+                            )
+                        }
+                        Text(
+                            text = if (uiState.isHandsActive)
+                                "Can tap, swipe, search YouTube, scroll feeds & control apps"
+                            else
+                                "Grant Accessibility permission to let Anisa touch & control your screen",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                if (!uiState.isHandsActive) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AmberGlow.copy(alpha = 0.2f))
+                            .border(1.dp, AmberGlow.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Enable",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AmberGlow
+                        )
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(14.dp))
 
         // --- Dynamic Central AI Avatar ---
@@ -364,14 +468,16 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val quickPrompts = listOf(
+                "YouTube open করে ওই ভিডিওটা চালাও",
+                "Facebook open করে feed scroll করো",
+                "Go Home",
+                "Go Back",
+                "Recent apps",
+                "Scroll down",
                 "আনিসা কেমন আছো?",
                 "अनीसा कैसी हो?",
-                "आज का मौसम कैसा है?",
                 "আজকের আবহাওয়া কেমন?",
-                "Organize my day",
-                "Tell me about Iron Man",
-                "काम खत्म हो गया!",
-                "কাজ শেষ করেছি!"
+                "Organize my day"
             )
             quickPrompts.forEach { prompt ->
                 Box(
