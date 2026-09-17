@@ -224,7 +224,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- Interaction & Hardware ---
-        SettingsSectionHeader(title = "INTERACTION CONTROLS", icon = Icons.Default.Vibration)
+        SettingsSectionHeader(title = "VOICE & LIVE INTERACTION", icon = Icons.Default.Vibration)
 
         SettingsCard {
             Row(
@@ -233,14 +233,27 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Wake Word ('Anisa')", color = TextWhite, fontWeight = FontWeight.Medium)
-                    Text(text = "Trigger Anisa hands-free by speaking her name", fontSize = 12.sp, color = TextSecondary)
+                    Text(text = "Wake Word Detection", color = TextWhite, fontWeight = FontWeight.Medium)
+                    Text(text = "Say 'Anisa', 'Hey Anisa', 'আনিসা' or 'अनीसा' to wake her up hands-free", fontSize = 12.sp, color = TextSecondary)
                 }
                 Switch(
                     checked = wakeWordEnabled,
                     onCheckedChange = { wakeWordEnabled = it; persistChanges() },
                     colors = SwitchDefaults.colors(checkedThumbColor = CyanNeon, checkedTrackColor = CyanNeon.copy(alpha = 0.4f))
                 )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "Trilingual Voice Engine", color = TextWhite, fontWeight = FontWeight.Medium)
+                    Text(text = "Auto-switching between বাংলা (Bengali), English & हिन्दी (Hindi)", fontSize = 12.sp, color = CyanNeon)
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))

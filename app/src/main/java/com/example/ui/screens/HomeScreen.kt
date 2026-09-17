@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -64,6 +66,7 @@ import com.example.ui.theme.TextWhite
 fun HomeScreen(
     uiState: AnisaUiState,
     onToggleMic: () -> Unit,
+    onToggleLiveSession: () -> Unit,
     onStopOperation: () -> Unit,
     onPromptSelected: (String) -> Unit,
     onNavigate: (AnisaScreen) -> Unit,
@@ -182,7 +185,104 @@ fun HomeScreen(
             onCancel = onCancelTask
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // --- Gemini Live Session Mode Banner ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    if (uiState.isLiveSessionActive)
+                        Brush.horizontalGradient(
+                            listOf(
+                                CyanNeon.copy(alpha = 0.18f),
+                                ElectricViolet.copy(alpha = 0.22f)
+                            )
+                        )
+                    else
+                        Brush.horizontalGradient(
+                            listOf(ObsidianCard, ObsidianCard.copy(alpha = 0.85f))
+                        )
+                )
+                .border(
+                    1.dp,
+                    if (uiState.isLiveSessionActive) CyanNeon.copy(alpha = 0.8f) else ObsidianBorder,
+                    RoundedCornerShape(16.dp)
+                )
+                .clickable { onToggleLiveSession() }
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .testTag("gemini_live_session_banner")
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (uiState.isLiveSessionActive) CyanNeon else ObsidianBorder
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = null,
+                            tint = if (uiState.isLiveSessionActive) Color(0xFF04131A) else TextWhite,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "GEMINI LIVE SESSION",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (uiState.isLiveSessionActive) CyanNeon else TextWhite,
+                                letterSpacing = 1.sp
+                            )
+                            if (uiState.isLiveSessionActive) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(CyanNeon)
+                                )
+                            }
+                        }
+                        Text(
+                            text = if (uiState.isLiveSessionActive)
+                                "Live • বাংলা + English + हिन्दी (Say 'Anisa')"
+                            else
+                                "Tap to activate hands-free voice loop",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Switch(
+                    checked = uiState.isLiveSessionActive,
+                    onCheckedChange = { onToggleLiveSession() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = CyanNeon,
+                        checkedTrackColor = CyanNeon.copy(alpha = 0.4f)
+                    ),
+                    modifier = Modifier.testTag("live_session_switch")
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         // --- Dynamic Central AI Avatar ---
         AnisaAvatar(
@@ -233,7 +333,7 @@ fun HomeScreen(
             val displaySpeech = when {
                 uiState.liveTranscript.isNotBlank() -> "\"${uiState.liveTranscript}\""
                 uiState.currentUtterance.isNotBlank() -> "\"${uiState.currentUtterance}\""
-                else -> "\"Say 'Anisa' or tap the mic to speak.\""
+                else -> if (uiState.isLiveSessionActive) "\"আমি শুনছি, বলো... (Say 'Anisa')\"" else "\"Say 'Anisa' or tap the mic to speak.\""
             }
 
             Text(
@@ -264,12 +364,14 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val quickPrompts = listOf(
+                "আনিসা কেমন আছো?",
+                "अनीसा कैसी हो?",
+                "आज का मौसम कैसा है?",
+                "আজকের আবহাওয়া কেমন?",
                 "Organize my day",
                 "Tell me about Iron Man",
-                "What's the weather?",
-                "I finished the project!",
-                "Quick answer please",
-                "What do you remember?"
+                "काम खत्म हो गया!",
+                "কাজ শেষ করেছি!"
             )
             quickPrompts.forEach { prompt ->
                 Box(

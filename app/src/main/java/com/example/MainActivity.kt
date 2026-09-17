@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
                                 AnisaScreen.HOME -> HomeScreen(
                                     uiState = uiState,
                                     onToggleMic = { viewModel.toggleMic() },
+                                    onToggleLiveSession = { viewModel.toggleLiveSession() },
                                     onStopOperation = { viewModel.stopCurrentOperation() },
                                     onPromptSelected = { prompt -> viewModel.handleUserSpeech(prompt) },
                                     onNavigate = { dest -> viewModel.selectScreen(dest) },

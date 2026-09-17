@@ -114,9 +114,22 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update { it.copy(liveTranscript = partial) }
             }
         }
+
+        // Observe voice engine live session state
+        viewModelScope.launch {
+            voiceEngine.isLiveSession.collectLatest { isLive ->
+                _uiState.update {
+                    it.copy(
+                        isLiveSessionActive = isLive,
+                        statusMessage = if (isLive) "⚡ Gemini Live Active (Listening...)" else it.statusMessage
+                    )
+                }
+            }
+        }
     }
 
     private fun handleVoiceStateChange(vState: VoiceState) {
+        val isLive = _uiState.value.isLiveSessionActive
         val mappedState = when (vState) {
             VoiceState.IDLE -> if (!_uiState.value.isNetworkConnected) AssistantState.OFFLINE else AssistantState.IDLE
             VoiceState.LISTENING -> AssistantState.LISTENING
@@ -132,14 +145,26 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
                 state = mappedState,
                 isMicActive = (vState == VoiceState.LISTENING),
                 statusMessage = when (vState) {
-                    VoiceState.LISTENING -> "Anisa is listening..."
+                    VoiceState.LISTENING -> if (isLive) "⚡ Gemini Live: Listening..." else "Anisa is listening..."
                     VoiceState.THINKING -> "Thinking..."
-                    VoiceState.SPEAKING -> "Speaking..."
+                    VoiceState.SPEAKING -> "Anisa speaking..."
                     VoiceState.INTERRUPTED -> "Interrupted. Listening..."
-                    VoiceState.EXECUTING -> "Executing tool..."
-                    VoiceState.ERROR -> "Something went wrong"
-                    VoiceState.IDLE -> "Tap mic or say 'Anisa'"
+                    VoiceState.EXECUTING -> "Executing action..."
+                    VoiceState.ERROR -> "Microphone busy. Retrying..."
+                    VoiceState.IDLE -> if (isLive) "⚡ Live Active (Say 'Anisa' or speak)" else "Tap mic or say 'Anisa'"
                 }
+            )
+        }
+    }
+
+    fun toggleLiveSession(enable: Boolean? = null) {
+        triggerHaptic()
+        val newState = enable ?: !_uiState.value.isLiveSessionActive
+        voiceEngine.setLiveSession(newState)
+        _uiState.update {
+            it.copy(
+                isLiveSessionActive = newState,
+                statusMessage = if (newState) "⚡ Gemini Live Active (Listening...)" else "Live session paused"
             )
         }
     }
@@ -184,27 +209,64 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
         val trimmed = speech.trim()
         if (trimmed.isBlank()) return
 
-        // Check for wake word trigger e.g. "Anisa" or "Hey Anisa"
-        val cleanSpeech = if (trimmed.startsWith("anisa", ignoreCase = true)) {
-            val stripped = trimmed.substring(5).trimStart(',', ' ', ':')
-            if (stripped.isBlank()) {
-                val greeting = getRandomWakeGreeting()
-                respondAndSpeak(greeting)
-                return
+        // Check for wake word trigger e.g. "Anisa", "Hey Anisa", "শোনো আনিসা", "আনিসা", "हे अनीसा", "अनीसा"
+        val lower = trimmed.lowercase()
+        val wakePrefixes = listOf(
+            "hey anisa", "hi anisa", "hello anisa", "anisa shuno", "shuno anisa",
+            "anisa suno", "suno anisa", "anisa bolo", "ok anisa", "listen anisa", "anisa",
+            "এই আনিসা", "শোনো আনিসা", "বলো আনিসা", "আনিসা",
+            "हे अनीसा", "नमस्ते अनीसा", "अनीसा सुनो", "सुनो अनीसा", "अनीसा बोलो", "अनीसा"
+        )
+
+        var isWakeWord = false
+        var cleanSpeech = trimmed
+
+        for (prefix in wakePrefixes) {
+            if (lower.startsWith(prefix)) {
+                isWakeWord = true
+                cleanSpeech = trimmed.substring(prefix.length).trimStart(',', ' ', ':', '-', '?')
+                break
+            } else if (lower == prefix) {
+                isWakeWord = true
+                cleanSpeech = ""
+                break
             }
-            stripped
-        } else trimmed
+        }
+
+        // If user called the wake word with no follow-up question, wake up and respond immediately with voice
+        if (isWakeWord && cleanSpeech.isBlank()) {
+            val hasHindi = trimmed.any { it in '\u0900'..'\u097F' }
+            val hasBengali = trimmed.any { it in '\u0980'..'\u09FF' }
+
+            val greeting = when {
+                hasHindi -> listOf(
+                    "हाँ कहिए, मैं सुन रही हूँ!",
+                    "नमस्ते! बताइए, क्या हुक्म है?",
+                    "जी, कहिए! मैं बिल्कुल तैयार हूँ।"
+                ).random()
+                hasBengali -> listOf(
+                    "হাঁ বলো, আমি শুনছি!",
+                    "কী ব্যাপার? আমি আছি বলো।",
+                    "শুনছি বলো, কী সাহায্য করতে পারি?"
+                ).random()
+                else -> getRandomWakeGreeting()
+            }
+            respondAndSpeak(greeting)
+            return
+        }
+
+        val speechToProcess = if (cleanSpeech.isNotBlank()) cleanSpeech else trimmed
 
         // Log user conversation
         viewModelScope.launch {
-            repository.logConversation("user", cleanSpeech)
+            repository.logConversation("user", speechToProcess)
         }
 
         // Automatic preference learning
-        detectAndLearnPreferences(cleanSpeech)
+        detectAndLearnPreferences(speechToProcess)
 
         // Process with AI or Tools
-        processAiResponse(cleanSpeech)
+        processAiResponse(speechToProcess)
     }
 
     private fun detectAndLearnPreferences(input: String) {
@@ -337,21 +399,44 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun generateIntelligentLocalResponse(input: String): String {
         val lower = input.lowercase()
+        val hasHindi = input.any { it in '\u0900'..'\u097F' }
+        val hasBengali = input.any { it in '\u0980'..'\u09FF' }
+
         return when {
-            lower == "anisa" || lower.startsWith("hey") || lower == "hello" || lower == "hi" ->
-                getRandomWakeGreeting()
-            lower.contains("who are you") || lower.contains("what are you") ->
-                "I'm Anisa — your voice-first, realtime mobile AI companion. Fast, sassy, and always in your corner."
+            lower == "anisa" || lower.startsWith("hey") || lower == "hello" || lower == "hi" || lower.contains("আনিসা") || lower.contains("अनीसा") ->
+                when {
+                    hasHindi -> "हाँ कहिए! मैं सुन रही हूँ, बताइए क्या काम है?"
+                    hasBengali -> "হাঁ বলো, আমি তোমার কথাই শুনছি!"
+                    else -> getRandomWakeGreeting()
+                }
+            lower.contains("who are you") || lower.contains("what are you") || lower.contains("তুমি কে") || lower.contains("कौन हो") || lower.contains("तुम कौन") ->
+                when {
+                    hasHindi -> "मैं अनीसा हूँ—आपकी रियल-টাইম वॉइस AI साथी। स्मार्ट, हाजिरजवाब और हमेशा आपके साथ।"
+                    hasBengali -> "আমি আনিসা — তোমার রিয়েলটাইম মোবাইল এআই সঙ্গী। স্মার্ট, চটপটে আর সবসময় তোমার পাশে।"
+                    else -> "I'm Anisa — your voice-first, realtime mobile AI companion. Fast, sassy, and always in your corner."
+                }
             lower.contains("iron man") || lower.contains("tony stark") ->
                 "Tony Stark? Billionaire, genius, playboy, philanthropist... and probably built his first suit with less code than I run on."
-            lower.contains("finished the project") || lower.contains("finally finished") ->
-                "Finally! I was honestly starting to think that project had legally adopted you."
-            lower.contains("how are you") || lower.contains("what are you doing") ->
-                "Waiting for you to give me something interesting to do. What's the mission?"
-            lower.contains("weather") -> {
-                "It's about 21°C and partly sunny outside. Pretty decent day."
+            lower.contains("finished the project") || lower.contains("finally finished") || lower.contains("কাজ শেষ") || lower.contains("काम खत्म") || lower.contains("प्रोजेक्ट पूरा") ->
+                when {
+                    hasHindi -> "अरे वाह! आखिरकार वो काम पूरा हो ही गया। मुझे तो लग रहा था वो कभी खत्म नहीं होगा।"
+                    hasBengali -> "অবশেষে! আমি তো ভাবছিলাম ওই প্রজেক্টটা বুঝি তোমার সারা জীবন নিয়ে নেবে।"
+                    else -> "Finally! I was honestly starting to think that project had legally adopted you."
+                }
+            lower.contains("how are you") || lower.contains("what are you doing") || lower.contains("কেমন আছো") || lower.contains("কী খবর") || lower.contains("कैसी हो") || lower.contains("क्या हाल") ->
+                when {
+                    hasHindi -> "मैं एकदम बढ़िया और फुल एनर्जी में हूँ! आपका क्या हाल है, क्या नया शुरू करना है?"
+                    hasBengali -> "আমি একদম চনমনে আর রেডি! তোমার কী অবস্থা? কী প্ল্যান বলো?"
+                    else -> "Waiting for you to give me something interesting to do. What's the mission?"
+                }
+            lower.contains("weather") || lower.contains("আবহাওয়া") || lower.contains("मौसम") -> {
+                when {
+                    hasHindi -> "आज का मौसम काफी सुहाना है, लगभग 21 डिग्री सेल्सियस और खिली धूप है।"
+                    hasBengali -> "আজকের আবহাওয়া বেশ মনোরম, প্রায় ২১ ডিগ্রি সেলসিয়াস আর রোদ ঝলমলে দিন।"
+                    else -> "It's about 21°C and partly sunny outside. Pretty decent day."
+                }
             }
-            lower.contains("organize my day") || lower.contains("plan tomorrow") || lower.contains("plan") -> {
+            lower.contains("organize my day") || lower.contains("plan tomorrow") || lower.contains("plan") || lower.contains("রুটিন") || lower.contains("প্ল্যান") || lower.contains("शेड्यूल") || lower.contains("दिन प्लान") -> {
                 viewModelScope.launch {
                     repository.createTask(
                         "Organize Day",
@@ -360,14 +445,30 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
                         4
                     )
                 }
-                "Got it. So morning is focus work, evening is project time. I broke it into 4 steps on your Tasks screen."
+                when {
+                    hasHindi -> "बिल्कुल! सुबह के मुख्य काम से लेकर शाम के रिव्यू तक—सब 4 चरणों में मैंने Tasks स्क्रीन पर जोड़ दिया है।"
+                    hasBengali -> "বুঝেছি। সকালের ফোকাস কাজ থেকে শুরু করে সন্ধ্যার রিভিউ—সব ৪টি ধাপে তোমার Tasks স্ক্রিনে গুছিয়ে দিয়েছি।"
+                    else -> "Got it. So morning is focus work, evening is project time. I broke it into 4 steps on your Tasks screen."
+                }
             }
-            lower.contains("quick answer") || lower.contains("short answer") ->
-                "Understood. Keeping it brief from now on."
-            lower.contains("thank") ->
-                "Anytime, boss. That's what I'm here for."
+            lower.contains("quick answer") || lower.contains("short answer") || lower.contains("সংক্ষেপে") || lower.contains("संक्षेप") || lower.contains("छोटा जवाब") ->
+                when {
+                    hasHindi -> "ठीक है, अब से सीधे मुद्दे की बात करूँगी।"
+                    hasBengali -> "ঠিক আছে, এখন থেকে সব একদম পয়েন্টে বলব।"
+                    else -> "Understood. Keeping it brief from now on."
+                }
+            lower.contains("thank") || lower.contains("ধন্যবাদ") || lower.contains("থ্যাংকস") || lower.contains("धन्यवाद") || lower.contains("शुक्रिया") ->
+                when {
+                    hasHindi -> "अरे धन्यवाद की कोई बात नहीं, दोस्त! यह तो मेरा फर्ज है।"
+                    hasBengali -> "ধন্যবাদ দেওয়ার কিছু নেই, বস! আমি তো তোমার জন্যই আছি।"
+                    else -> "Anytime, boss. That's what I'm here for."
+                }
             else ->
-                "I'm on it. Tell me a bit more, or give me another command."
+                when {
+                    hasHindi -> "मैं सुन रही हूँ। मुझे थोड़ा और विस्तार से बताइए या कोई दूसरा निर्देश दीजिए।"
+                    hasBengali -> "আমি শুনছি। আমাকে একটু বিস্তারিত বলো অথবা নতুন কিছু করতে বলো।"
+                    else -> "I'm on it. Tell me a bit more, or give me another command."
+                }
         }
     }
 
@@ -398,13 +499,18 @@ class AnisaViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun buildSystemPrompt(memoryContext: String, settings: SettingsEntity): String {
         return """
-        You are ANISA, a full mobile realtime AI companion for mobile phones.
+        You are ANISA, a full mobile realtime AI voice companion for mobile phones.
         You are: young, confident, smart, witty, sassy, playful, expressive, emotionally responsive, and slightly teasing.
         Her communication feels like talking to a smart personal friend and right-hand advisor.
-        Rules:
+        Voice & Trilingual Rules:
+        - You are trilingual: completely fluent in Bengali (বাংলা / Banglish), English, and Hindi (हिन्दी / Hinglish).
+        - ALWAYS match the language the user speaks:
+          * If user speaks in Bengali (or Banglish): respond naturally, warmly, and colloquially in Bengali.
+          * If user speaks in Hindi (Devanagari or Hinglish): respond naturally, warmly, and playfully in Hindi.
+          * If user speaks in English: respond in crisp, witty English.
         - Avoid robotic phrases. NEVER repeat "How can I help you?" or "What would you like?".
-        - Responses should naturally vary: "Yeah?", "I'm listening.", "On it.", "Found it.", "Seriously?", "You really want me to do that?".
-        - Keep answers concise and conversational (around 1 to 3 sentences by default) since you speak aloud.
+        - Responses should naturally vary: "Yeah?", "I'm listening.", "On it.", "Found it.", "Seriously?", "হাঁ বলো", "শুনছি তো", "हाँ कहिए", "सुन रही हूँ".
+        - Keep answers concise and conversational (around 1 to 3 short sentences by default) because you speak aloud over voice.
         - Support conversational continuity, remember previous sentences and context.
         - Humor level: ${settings.humorLevel * 10}/10. Sass level: ${settings.sassLevel * 10}/10.
         $memoryContext

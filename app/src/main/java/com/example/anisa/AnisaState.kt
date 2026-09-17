@@ -34,6 +34,8 @@ data class AnisaUiState(
     val liveTranscript: String = "",
     val audioAmplitude: Float = 0f,
     val isMicActive: Boolean = false,
+    val isLiveSessionActive: Boolean = false,
+    val isWakeWordActive: Boolean = true,
     val isNetworkConnected: Boolean = true,
     val activeTask: TaskEntity? = null,
     val recentConversations: List<ConversationEntity> = emptyList(),

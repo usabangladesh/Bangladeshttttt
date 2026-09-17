@@ -57,7 +57,19 @@ class VoiceEngine(
     private val _partialTranscript = MutableStateFlow("")
     val partialTranscript: StateFlow<String> = _partialTranscript.asStateFlow()
 
+    // Continuous Gemini Live session state
+    private val _isLiveSession = MutableStateFlow(false)
+    val isLiveSession: StateFlow<Boolean> = _isLiveSession.asStateFlow()
+
+    var wakeWordEnabled: Boolean = true
+
     private var speechSimJob: Job? = null
+
+    private val restartListeningRunnable = Runnable {
+        if (_isLiveSession.value && _voiceState.value != VoiceState.SPEAKING) {
+            startListening()
+        }
+    }
 
     var speechRate: Float = 1.05f
         set(value) {
@@ -124,12 +136,14 @@ class VoiceEngine(
 
             override fun onError(error: Int) {
                 _audioAmplitude.value = 0f
-                if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                    if (_voiceState.value == VoiceState.LISTENING) {
-                        setState(VoiceState.IDLE)
-                    }
-                } else if (_voiceState.value == VoiceState.LISTENING) {
+                if (_voiceState.value == VoiceState.LISTENING) {
                     setState(VoiceState.IDLE)
+                }
+                // If Live Session is enabled, seamlessly auto-restart listening after silence or transient error
+                if (_isLiveSession.value && _voiceState.value != VoiceState.SPEAKING) {
+                    mainHandler.removeCallbacks(restartListeningRunnable)
+                    val delayMs = if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 800L else 350L
+                    mainHandler.postDelayed(restartListeningRunnable, delayMs)
                 }
             }
 
@@ -140,16 +154,28 @@ class VoiceEngine(
 
                 if (recognizedText.isNotBlank()) {
                     _partialTranscript.value = recognizedText
-                    // Check for immediate barge-in commands
+                    // Check for immediate barge-in / stop commands in English, Bengali, and Hindi
                     val lower = recognizedText.lowercase()
-                    if (lower == "wait" || lower == "stop" || lower == "hold on" || lower == "forget that") {
+                    if (lower == "wait" || lower == "stop" || lower == "hold on" || lower == "forget that" ||
+                        lower == "থামো" || lower == "দাঁড়াও" || lower == "চুপ" ||
+                        lower == "रुको" || lower == "रुक जाओ" || lower == "बस करो" || lower == "चुप"
+                    ) {
+                        val stopAck = when {
+                            recognizedText.any { it in '\u0900'..'\u097F' } -> "मैं रुक गई। बोलिए, सुन रही हूँ।"
+                            recognizedText.any { it in '\u0980'..'\u09FF' } -> "আমি থামলাম। বলো, শুনছি।"
+                            else -> "I stopped. I'm listening."
+                        }
                         interrupt()
-                        speak("I stopped. What's on your mind?")
+                        speak(stopAck)
                     } else {
                         onSpeechRecognized(recognizedText)
                     }
                 } else {
                     setState(VoiceState.IDLE)
+                    if (_isLiveSession.value && _voiceState.value != VoiceState.SPEAKING) {
+                        mainHandler.removeCallbacks(restartListeningRunnable)
+                        mainHandler.postDelayed(restartListeningRunnable, 350L)
+                    }
                 }
             }
 
@@ -186,14 +212,39 @@ class VoiceEngine(
                         stopSpeakingAmplitudeSimulation()
                         _audioAmplitude.value = 0f
                         setState(VoiceState.IDLE)
+                        // In Live Session, automatically open mic back up after speaking
+                        if (_isLiveSession.value) {
+                            mainHandler.removeCallbacks(restartListeningRunnable)
+                            mainHandler.postDelayed(restartListeningRunnable, 350L)
+                        }
                     }
 
                     override fun onError(utteranceId: String?) {
                         stopSpeakingAmplitudeSimulation()
                         _audioAmplitude.value = 0f
                         setState(VoiceState.IDLE)
+                        if (_isLiveSession.value) {
+                            mainHandler.removeCallbacks(restartListeningRunnable)
+                            mainHandler.postDelayed(restartListeningRunnable, 350L)
+                        }
                     }
                 })
+            }
+        }
+    }
+
+    fun setLiveSession(enabled: Boolean) {
+        _isLiveSession.value = enabled
+        mainHandler.post {
+            mainHandler.removeCallbacks(restartListeningRunnable)
+            if (enabled) {
+                if (_voiceState.value != VoiceState.SPEAKING && _voiceState.value != VoiceState.LISTENING) {
+                    startListening()
+                }
+            } else {
+                if (_voiceState.value == VoiceState.LISTENING) {
+                    stopListening()
+                }
             }
         }
     }
@@ -208,22 +259,26 @@ class VoiceEngine(
                 _partialTranscript.value = ""
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.US.toString())
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1300L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
                 }
                 speechRecognizer?.startListening(intent)
                 setState(VoiceState.LISTENING)
             } catch (e: Exception) {
                 setState(VoiceState.ERROR)
+                if (_isLiveSession.value) {
+                    mainHandler.removeCallbacks(restartListeningRunnable)
+                    mainHandler.postDelayed(restartListeningRunnable, 1000L)
+                }
             }
         }
     }
 
     fun stopListening() {
         mainHandler.post {
+            mainHandler.removeCallbacks(restartListeningRunnable)
             try {
                 speechRecognizer?.stopListening()
             } catch (e: Exception) {
@@ -240,14 +295,53 @@ class VoiceEngine(
         if (!isTtsReady || text.isBlank()) return
         mainHandler.post {
             try {
-                // Stop any current speech
+                mainHandler.removeCallbacks(restartListeningRunnable)
+                // Stop active listening temporarily to prevent speaker echo
+                try {
+                    speechRecognizer?.stopListening()
+                } catch (e: Exception) {
+                    // Ignored
+                }
                 textToSpeech?.stop()
                 stopSpeakingAmplitudeSimulation()
+
+                // Multilingual voice detection: support Bengali, Hindi, and English TTS dynamically
+                val hasHindi = text.any { it in '\u0900'..'\u097F' }
+                val hasBengali = text.any { it in '\u0980'..'\u09FF' }
+
+                when {
+                    hasHindi -> {
+                        val hiLocale = Locale("hi", "IN")
+                        val avail = textToSpeech?.isLanguageAvailable(hiLocale)
+                        if (avail != TextToSpeech.LANG_MISSING_DATA && avail != TextToSpeech.LANG_NOT_SUPPORTED) {
+                            textToSpeech?.language = hiLocale
+                        } else {
+                            textToSpeech?.language = Locale("hi")
+                        }
+                    }
+                    hasBengali -> {
+                        val bnLocale = Locale("bn", "BD")
+                        val avail = textToSpeech?.isLanguageAvailable(bnLocale)
+                        if (avail != TextToSpeech.LANG_MISSING_DATA && avail != TextToSpeech.LANG_NOT_SUPPORTED) {
+                            textToSpeech?.language = bnLocale
+                        } else {
+                            textToSpeech?.language = Locale("bn")
+                        }
+                    }
+                    else -> {
+                        textToSpeech?.language = Locale.US
+                    }
+                }
+
                 val utteranceId = "anisa_speech_${System.currentTimeMillis()}"
                 textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
                 setState(VoiceState.SPEAKING)
             } catch (e: Exception) {
                 setState(VoiceState.IDLE)
+                if (_isLiveSession.value) {
+                    mainHandler.removeCallbacks(restartListeningRunnable)
+                    mainHandler.postDelayed(restartListeningRunnable, 400L)
+                }
             }
         }
     }
@@ -278,6 +372,7 @@ class VoiceEngine(
     }
 
     fun cancelAll() {
+        mainHandler.removeCallbacks(restartListeningRunnable)
         stopSpeaking()
         stopListening()
         setState(VoiceState.IDLE)
